@@ -1,0 +1,49 @@
+{
+  "services": [
+    {
+      "name": "nginx",
+      "image": "nginx:stable",
+      "restart": "unless-stopped",
+      "ports": [
+        "8080:80"
+      ],
+      "volumes": [
+        "./data/my-site/html:/usr/share/nginx/html"
+      ],
+      "environment": {
+        "SOME_KEY": "SOME_VALUE"
+      },
+      "expose": true,
+      "expose_port": "80"
+    },
+    {
+      "name": "my-db",
+      "image": "postgres:14.17",
+      "restart": "unless-stopped",
+      "ports": [
+        "5432:5432"
+      ],
+      "volumes": [
+        "./data/n8n-db/data:/var/lib/postgresql/data"
+      ],
+      "environment": {
+        "POSTGRES_DB": "some-db",
+        "POSTGRES_USER": "some-user",
+        "POSTGRES_PASSWORD": "some-password"
+      },
+      "expose": false
+    },
+    {
+      "name": "ollama",
+      "image": "ollama/ollama:0.5.13",
+      "restart": "unless-stopped",
+      "ports": [
+        "11434:11434"
+      ],
+      "volumes": [
+        "./data/ollama:/root/.ollama"
+      ],
+      "expose": false
+    }
+  ]
+}

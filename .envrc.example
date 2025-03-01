@@ -1,0 +1,8 @@
+DATA_DIRECTORY=/tmp/cloudflare-tunnel-lab/data
+CLOUDFLARE_ZONE=your-cloudflare-domain.com
+CLOUDFLARE_EMAIL=some-email
+CLOUDFLARE_ACCOUNT_ID=some-account-id
+CLOUDFLARE_ZONE_ID=some-zone-id
+CLOUDFLARE_ZERO_TRUST_TEAM_NAME=some-team-name
+CLOUDFLARE_API_TOKEN=some-api-token
+CLOUDFLARE_EMAIL_LIST=['some-email@host.com']
