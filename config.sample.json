@@ -1,4 +1,18 @@
 {
+  "cloudflare": {
+    "domain": "your-cloudflare-domain.com",
+    "email": "some-email",
+    "account_id": "some-account-id",
+    "zone_id": "some-zone-id",
+    "api_token": "some-api-token",
+    "zero_trust": {
+      "team_name": "some-team-name",
+      "approved_emails": [
+        "jane.doe@gmail.com",
+        "john.doe@gmail.com"
+      ]
+    }
+  },
   "services": [
     {
       "name": "nginx",

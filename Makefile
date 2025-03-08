@@ -1,8 +1,3 @@
-ENV_FILE := $(or $(ENV_FILE), .envrc)
-
-include $(ENV_FILE)
-export $(shell sed 's/=.*//' $(ENV_FILE))
-
 format:
 	terraform fmt
 

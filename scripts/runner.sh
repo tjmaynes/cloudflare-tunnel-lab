@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 
-set -e
-
 RUN_TYPE=$1
 
-function throw_if_required_tf_env_var_not_exists() {
+function ensure_tf_env_var_exists() {
   env_var_name=$1
   env_var_value=$2
   if [[ -z "$env_var_value" ]]; then
@@ -25,21 +23,11 @@ function check_requirements() {
     exit 1
   fi
 
-  throw_if_required_tf_env_var_not_exists "LAB_CONFIG_FILE" "$LAB_CONFIG_FILE"
-  throw_if_required_tf_env_var_not_exists "CLOUDFLARE_ZONE" "$CLOUDFLARE_ZONE"
-  throw_if_required_tf_env_var_not_exists "CLOUDFLARE_EMAIL" "$CLOUDFLARE_EMAIL"
-  throw_if_required_tf_env_var_not_exists "CLOUDFLARE_ACCOUNT_ID" "$CLOUDFLARE_ACCOUNT_ID"
-  throw_if_required_tf_env_var_not_exists "CLOUDFLARE_ZONE_ID" "$CLOUDFLARE_ZONE_ID"
-  throw_if_required_tf_env_var_not_exists "CLOUDFLARE_ZERO_TRUST_TEAM_NAME" "$CLOUDFLARE_ZERO_TRUST_TEAM_NAME"
-  throw_if_required_tf_env_var_not_exists "CLOUDFLARE_API_TOKEN" "$CLOUDFLARE_API_TOKEN"
-  throw_if_required_tf_env_var_not_exists "CLOUDFLARE_EMAIL_LIST" "$CLOUDFLARE_EMAIL_LIST"
+  ensure_tf_env_var_exists "LAB_CONFIG_FILE" "$LAB_CONFIG_FILE"
 
-  if [[ -z "$DATA_DIRECTORY" ]]; then
-    echo "Please set 'DATA_DIRECTORY' environment variable before running this script..."
-    exit 1
-  fi
-  export CLOUDFLARE_TUNNEL_DATA_DIRECTORY="$DATA_DIRECTORY/cloudflare-tunnel"
-  throw_if_required_tf_env_var_not_exists "CLOUDFLARE_TUNNEL_DATA_DIRECTORY" "$CLOUDFLARE_TUNNEL_DATA_DIRECTORY"
+  DATA_DIRECTORY="$(pwd)/tmp"
+  ensure_tf_env_var_exists "DATA_DIRECTORY" "$DATA_DIRECTORY"
+  [[ ! -d "$DATA_DIRECTORY/cloudflare-tunnel/creds" ]] && mkdir -p "$DATA_DIRECTORY/cloudflare-tunnel/creds"
 }
 
 function main() {

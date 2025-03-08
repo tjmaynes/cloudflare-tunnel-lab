@@ -18,52 +18,33 @@ terraform {
   required_version = ">= 1.2"
 }
 
-variable "cloudflare_zone" {
-  description = "Domain for cloudflare tunnel"
-  type        = string
-}
-
-variable "cloudflare_account_id" {
-  description = "value"
-  type        = string
-}
-
-variable "cloudflare_zone_id" {
-  description = "value"
-  type        = string
-}
-
-variable "cloudflare_api_token" {
-  description = "API token for making changes to cloudflare tunnel"
-  type        = string
-}
-
-variable "cloudflare_email_list" {
-  description = "Accepted email access list"
-  type        = list(string)
-}
-
-variable "cloudflare_zero_trust_team_name" {
-  description = "Team name used for your cloudflare zero trust setup"
-  type        = string
-}
-
-variable "cloudflare_tunnel_data_directory" {
-  description = "Directory for storing cloudflared data files"
-  type        = string
-}
-
 variable "lab_config_file" {
   description = "Lab config file location"
   type        = string
 }
 
+variable "data_directory" {
+  description = "Directory for storing data files"
+  type        = string
+}
+
 locals {
   raw_lab_config_file = jsondecode(file(var.lab_config_file))
-  raw_tunnel_apps     = [for s in local.raw_lab_config_file["services"] : s if s["expose"] == true]
+  cloudflare_config = {
+    domain : local.raw_lab_config_file["cloudflare"]["domain"]
+    email : local.raw_lab_config_file["cloudflare"]["email"]
+    account_id : local.raw_lab_config_file["cloudflare"]["account_id"]
+    zone_id : local.raw_lab_config_file["cloudflare"]["zone_id"]
+    api_token : local.raw_lab_config_file["cloudflare"]["api_token"]
+    zero_trust : {
+      team_name : local.raw_lab_config_file["cloudflare"]["zero_trust"]["team_name"]
+      approved_emails : local.raw_lab_config_file["cloudflare"]["zero_trust"]["approved_emails"]
+    }
+  }
+  raw_tunnel_apps = [for s in local.raw_lab_config_file["services"] : s if s["expose"] == true]
   tunnel_apps = [
     for app in local.raw_tunnel_apps : {
-      hostname     = "${app["name"]}.${var.cloudflare_zone}"
+      hostname     = "${app["name"]}.${local.cloudflare_config.domain}"
       internal_url = "http://${app["name"]}:${app["expose_port"]}"
     }
   ]
@@ -94,7 +75,7 @@ locals {
       origin_request = {
         access = {
           required        = true
-          team_name       = var.cloudflare_zero_trust_team_name
+          team_name       = local.cloudflare_config.zero_trust.team_name
           connect_timeout = 3600
           aud_tag = [
             cloudflare_zero_trust_access_application.lab_apps[
@@ -106,14 +87,14 @@ locals {
     }
   ]
   http_policy_allowed_emails = [
-    for allowed_email in var.cloudflare_email_list : {
+    for allowed_email in local.cloudflare_config.zero_trust.approved_emails : {
       email = {
         email = allowed_email
       }
     }
   ]
   cf_tunnel_secret = jsonencode({
-    "AccountTag" : var.cloudflare_account_id,
+    "AccountTag" : local.cloudflare_config.account_id,
     "TunnelName" : cloudflare_zero_trust_tunnel_cloudflared.lab_tunnel.name,
     "TunnelID" : cloudflare_zero_trust_tunnel_cloudflared.lab_tunnel.id
     "TunnelSecret" : base64sha256(random_password.tunnel_secret.result),
@@ -121,7 +102,7 @@ locals {
 }
 
 provider "cloudflare" {
-  api_token = var.cloudflare_api_token
+  api_token = local.cloudflare_config.api_token
 }
 
 provider "random" {}
@@ -134,7 +115,7 @@ resource "random_password" "tunnel_secret" {
 }
 
 resource "cloudflare_zero_trust_tunnel_cloudflared" "lab_tunnel" {
-  account_id    = var.cloudflare_account_id
+  account_id    = local.cloudflare_config.account_id
   name          = "Terraform Lab tunnel"
   tunnel_secret = base64sha256(random_password.tunnel_secret.result)
 }
@@ -142,7 +123,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared" "lab_tunnel" {
 # Creates the configuration for the tunnel.
 resource "cloudflare_zero_trust_tunnel_cloudflared_config" "lab_tunnel" {
   tunnel_id  = cloudflare_zero_trust_tunnel_cloudflared.lab_tunnel.id
-  account_id = var.cloudflare_account_id
+  account_id = local.cloudflare_config.account_id
   config = {
     ingress = concat(local.ingress_rules, [{
       service = "http_status:404"
@@ -154,7 +135,7 @@ resource "cloudflare_zero_trust_tunnel_cloudflared_config" "lab_tunnel" {
 resource "cloudflare_dns_record" "lab_apps" {
   count = length(local.tunnel_apps)
 
-  zone_id = var.cloudflare_zone_id
+  zone_id = local.cloudflare_config.zone_id
   name    = local.tunnel_apps[count.index].hostname
   content = join(".", [cloudflare_zero_trust_tunnel_cloudflared.lab_tunnel.id, "cfargotunnel.com"])
   type    = "CNAME"
@@ -168,7 +149,7 @@ resource "cloudflare_dns_record" "lab_apps" {
 
 # Creates an Access policy for the application.
 resource "cloudflare_zero_trust_access_policy" "ai_lab_http_policy" {
-  account_id = var.cloudflare_account_id
+  account_id = local.cloudflare_config.account_id
   name       = "Cloudflare Tunnel Lab"
   decision   = "allow"
   include    = local.http_policy_allowed_emails
@@ -179,7 +160,7 @@ resource "cloudflare_zero_trust_access_application" "lab_apps" {
   count = length(local.tunnel_apps)
 
   type    = "self_hosted"
-  zone_id = var.cloudflare_zone_id
+  zone_id = local.cloudflare_config.zone_id
   name    = local.tunnel_apps[count.index].hostname
   domain  = local.tunnel_apps[count.index].hostname
   policies = [{
@@ -196,7 +177,7 @@ resource "cloudflare_zero_trust_access_application" "lab_apps" {
 }
 
 resource "local_file" "app_config" {
-  filename = "${var.cloudflare_tunnel_data_directory}/creds/credentials.json"
+  filename = "${var.data_directory}/cloudflare-tunnel/credentials.json"
   content  = local.cf_tunnel_secret
 }
 
@@ -219,7 +200,7 @@ resource "docker_container" "cloudflared_container" {
   ]
 
   volumes {
-    host_path      = var.cloudflare_tunnel_data_directory
+    host_path      = "${var.data_directory}/cloudflare-tunnel"
     container_path = "/etc/cloudflared"
     read_only      = false
   }
